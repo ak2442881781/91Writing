@@ -1,5 +1,5 @@
 /**
- * 统一存储管理器 - 91写作数据持久化层
+ * 统一存储管理器 - 文字创作数据持久化层
  * 优先级: IndexedDB (主存储) > localStorage (缓存) > 内存
  * 
  * 解决问题:
@@ -7,7 +7,7 @@
  * - localStorage 容量限制 (5-10MB)
  * - 无备份和恢复机制
  * 
- * @author 91写作团队
+ * @author 文字创作团队
  * @version 1.0.0
  */
 
@@ -16,7 +16,7 @@ import { ElMessage } from 'element-plus'
 class StorageManager {
   constructor() {
     this.db = null
-    this.dbName = '91writing'
+    this.dbName = 'writing'
     this.version = 1
     this.stores = {
       novels: 'novels',          // 小说数据

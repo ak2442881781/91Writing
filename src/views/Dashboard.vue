@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <div class="sidebar" :class="{ 'collapsed': isCollapse }">
       <div class="logo">
-        <h2>📚 91写作</h2>
+        <h2>📚 文字创作</h2>
       </div>
       
       <el-menu
@@ -96,7 +96,7 @@
               placeholder="选择模型"
             >
               <!-- 官方模型组 -->
-              <el-option-group label="🏢 91写作官方模型">
+              <el-option-group label="🏢 文字创作官方模型">
                 <el-option
                   v-for="model in officialModels"
                   :key="model.id"

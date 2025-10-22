@@ -13,7 +13,7 @@
       <!-- 配置类型选择 -->
       <div class="config-type-selector">
         <el-radio-group v-model="configType" @change="onConfigTypeChange">
-          <el-radio-button label="official">🏢 91写作官方API</el-radio-button>
+          <el-radio-button label="official">🏢 文字创作官方API</el-radio-button>
           <el-radio-button label="custom">⚙️ 自定义API配置</el-radio-button>
         </el-radio-group>
       </div>
@@ -26,7 +26,7 @@
           <div v-if="configType === 'official'" class="config-tips official-tips">
             <h4>🏢 官方默认配置</h4>
             <div class="tips-content">
-              <p><strong>推荐新手使用</strong>，不会自己获取API和配置大模型的用户可以选择91写作官方推出的，API，只需输入密钥即可。采用<strong>按次计费</strong>模式，价格透明。</p>
+              <p><strong>推荐新手使用</strong>，不会自己获取API和配置大模型的用户可以选择文字创作官方推出的，API，只需输入密钥即可。采用<strong>按次计费</strong>模式，价格透明。</p>
               
                              <div class="model-info">
                  <h5>推荐模型：</h5>

@@ -152,7 +152,7 @@ import {
   buildGlobalSystemPrompt,
   updateGlobalConfig,
   resetGlobalConfig,
-  exportConfig,
+  exportConfig as exportConfigService,
   importConfig as importConfigService
 } from '../services/aiConfig.js'
 
@@ -209,7 +209,7 @@ const resetConfig = () => {
 
 // 导出配置
 const exportConfig = () => {
-  const configData = exportConfig()
+  const configData = exportConfigService()
   const dataStr = JSON.stringify(configData, null, 2)
   const dataBlob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(dataBlob)
