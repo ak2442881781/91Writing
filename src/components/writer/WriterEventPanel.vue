@@ -93,9 +93,11 @@ defineEmits([
 }
 
 .events-timeline {
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
   position: relative;
+  padding-bottom: 20px; /* 为最后一个事件添加底部间距 */
+  padding-right: 8px; /* 为滚动条留出空间 */
 }
 
 .event-item {
@@ -103,6 +105,10 @@ defineEmits([
   align-items: flex-start;
   margin-bottom: 20px;
   position: relative;
+}
+
+.event-item:last-child {
+  margin-bottom: 0; /* 最后一个事件不需要底部间距，由容器padding处理 */
 }
 
 .event-marker {

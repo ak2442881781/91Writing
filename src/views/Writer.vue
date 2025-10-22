@@ -559,10 +559,11 @@
                 size="small" 
                 type="primary" 
                 @click="generateCharacterAI"
+                :loading="isStreaming && streamingType === 'character'"
                 style="flex: 1;"
               >
-                <el-icon><Star /></el-icon>
-                AI生成角色信息
+                <el-icon v-if="!(isStreaming && streamingType === 'character')"><Star /></el-icon>
+                {{ isStreaming && streamingType === 'character' ? '生成中...' : 'AI生成角色信息' }}
               </el-button>
               <el-button size="small" @click="openPromptDialog('character')" style="margin-left: 8px;">
                 📝 提示词
@@ -1425,9 +1426,10 @@
             v-if="!batchGenerating && generatedCharacters.length === 0"
             type="primary" 
             @click="batchGenerateCharacters"
+            :loading="batchGenerating"
             :disabled="!batchGenerateConfig.includeMainCharacters && !batchGenerateConfig.includeSupportingCharacters && !batchGenerateConfig.includeMinorCharacters"
           >
-            🚀 开始生成
+            {{ batchGenerating ? '生成中...' : '🚀 开始生成' }}
           </el-button>
           <!-- <el-button 
             type="success"
@@ -1440,8 +1442,9 @@
           <el-button 
             v-if="!batchGenerating && generatedCharacters.length > 0"
             @click="batchGenerateCharacters"
+            :loading="batchGenerating"
           >
-            🔄 重新生成
+            {{ batchGenerating ? '生成中...' : '🔄 重新生成' }}
           </el-button>
           <el-button 
             v-if="!batchGenerating && generatedCharacters.length > 0"
@@ -8047,36 +8050,264 @@ const buildEventGenerationPrompt = () => {
   return basePrompt
 }
 
-const parseAIEventResponse = (response) => {
-  try {
-    // 尝试直接解析JSON
-    const events = JSON.parse(response)
+// 修复不完整JSON的辅助函数
+const findLastCompleteObject = (jsonString) => {
+  let braceCount = 0
+  let inString = false
+  let escapeNext = false
+  let lastCompleteEnd = -1
+  
+  for (let i = 0; i < jsonString.length; i++) {
+    const char = jsonString[i]
     
-    // 验证数据结构
-    if (!Array.isArray(events)) {
-      throw new Error('AI返回格式错误：应为数组')
+    if (escapeNext) {
+      escapeNext = false
+      continue
     }
     
-    // 验证每个事件的基本字段
-    return events.map((event, index) => {
-      if (!event.title || !event.description) {
-        throw new Error(`第${index + 1}个事件缺少必要字段`)
+    if (char === '\\') {
+      escapeNext = true
+      continue
+    }
+    
+    if (char === '"' && !escapeNext) {
+      inString = !inString
+      continue
+    }
+    
+    if (!inString) {
+      if (char === '{') {
+        braceCount++
+      } else if (char === '}') {
+        braceCount--
+        if (braceCount === 0) {
+          lastCompleteEnd = i + 1
+        }
+      }
+    }
+  }
+  
+  return lastCompleteEnd > 0 ? { end: lastCompleteEnd } : null
+}
+
+// 从部分响应中提取事件
+const extractPartialEvents = (response) => {
+  try {
+    // 清理响应
+    let cleanResponse = response.trim()
+    cleanResponse = cleanResponse
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim()
+    
+    // 找到JSON数组开始
+    const jsonStart = cleanResponse.indexOf('[')
+    if (jsonStart === -1) return []
+    
+    // 尝试找到所有完整的对象
+    const events = []
+    let currentPos = jsonStart + 1
+    let braceCount = 0
+    let inString = false
+    let escapeNext = false
+    let objectStart = -1
+    
+    for (let i = currentPos; i < cleanResponse.length; i++) {
+      const char = cleanResponse[i]
+      
+      if (escapeNext) {
+        escapeNext = false
+        continue
       }
       
-      return {
-        title: event.title || `事件${index + 1}`,
-        description: event.description || '暂无描述',
-        time: event.time || '时间待定',
-        chapter: event.chapter || currentChapter.value?.title || '',
-        importance: ['low', 'normal', 'high', 'critical'].includes(event.importance) 
-          ? event.importance 
-          : 'normal',
-        tags: event.tags || []
+      if (char === '\\') {
+        escapeNext = true
+        continue
       }
-    })
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString
+        continue
+      }
+      
+      if (!inString) {
+        if (char === '{') {
+          if (braceCount === 0) {
+            objectStart = i
+          }
+          braceCount++
+        } else if (char === '}') {
+          braceCount--
+          if (braceCount === 0 && objectStart !== -1) {
+            // 找到一个完整的对象
+            const objectStr = cleanResponse.substring(objectStart, i + 1)
+            try {
+              const event = JSON.parse(objectStr)
+              if (event.title && event.description) {
+                events.push({
+                  title: event.title,
+                  description: event.description,
+                  time: event.time || '时间待定',
+                  chapter: event.chapter || '',
+                  importance: event.importance || 'normal',
+                  tags: event.tags || []
+                })
+              }
+            } catch (e) {
+              console.warn('解析单个事件失败:', e)
+            }
+            objectStart = -1
+          }
+        }
+      }
+    }
+    
+    return events
+  } catch (error) {
+    console.error('提取部分事件失败:', error)
+    return []
+  }
+}
+
+const parseAIEventResponse = (response) => {
+  try {
+    // 清理响应内容，移除可能的HTML标签和思考过程
+    let cleanResponse = response.trim()
+    
+    // 移除常见的非JSON内容
+    cleanResponse = cleanResponse
+      .replace(/<think>.*?<\/redacted_think>/gs, '') // 移除思考标签
+      .replace(/<think>.*?<\/think>/gs, '') // 移除think标签
+      .replace(/<[^>]*>/g, '') // 移除所有HTML标签
+      .replace(/```json\s*/g, '') // 移除markdown代码块标记
+      .replace(/```\s*/g, '') // 移除代码块结束标记
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 移除控制字符
+      .replace(/\*\*[^*]*\*\*/g, '') // 移除markdown粗体标记
+      .replace(/\*[^*]*\*/g, '') // 移除markdown斜体标记
+      .trim()
+    
+    // 尝试找到JSON数组的开始和结束
+    const jsonStart = cleanResponse.indexOf('[')
+    const jsonEnd = cleanResponse.lastIndexOf(']')
+    
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1)
+    }
+    
+    console.log('清理后的响应长度:', cleanResponse.length)
+    console.log('清理后的完整响应:', cleanResponse)
+    
+    // 尝试修复不完整的JSON
+    let fixedResponse = cleanResponse
+    
+    // 如果JSON不完整（缺少结束括号），尝试修复
+    if (fixedResponse.startsWith('[') && !fixedResponse.endsWith(']')) {
+      console.log('检测到不完整的JSON，尝试修复...')
+      
+      // 找到最后一个完整的对象
+      const lastCompleteObject = findLastCompleteObject(fixedResponse)
+      if (lastCompleteObject) {
+        fixedResponse = fixedResponse.substring(0, lastCompleteObject.end) + ']'
+        console.log('修复后的JSON长度:', fixedResponse.length)
+      }
+    }
+    
+    // 尝试直接解析JSON
+    try {
+      const events = JSON.parse(fixedResponse)
+      console.log('✅ JSON解析成功，事件数量:', events.length)
+      
+      // 验证数据结构
+      if (!Array.isArray(events)) {
+        throw new Error('AI返回格式错误：应为数组')
+      }
+      
+      // 验证每个事件的基本字段
+      return events.map((event, index) => {
+        if (!event.title || !event.description) {
+          throw new Error(`第${index + 1}个事件缺少必要字段`)
+        }
+        
+        return {
+          title: event.title || `事件${index + 1}`,
+          description: event.description || '暂无描述',
+          time: event.time || '时间待定',
+          chapter: event.chapter || currentChapter.value?.title || '',
+          importance: ['low', 'normal', 'high', 'critical'].includes(event.importance) 
+            ? event.importance 
+            : 'normal',
+          tags: event.tags || []
+        }
+      })
+      
+    } catch (parseError) {
+      console.error('JSON解析失败:', parseError)
+      console.log('尝试修复JSON...')
+      
+      // 尝试修复常见的JSON问题
+      let repairedResponse = fixedResponse
+      
+      // 修复未转义的引号（在字符串值内部）
+      repairedResponse = repairedResponse.replace(/([^\\])"([^"]*)"([^\\])/g, '$1\\"$2\\"$3')
+      
+      // 修复换行符
+      repairedResponse = repairedResponse.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+      
+      // 修复制表符
+      repairedResponse = repairedResponse.replace(/\t/g, '\\t')
+      
+      // 修复其他控制字符
+      repairedResponse = repairedResponse.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+      
+      console.log('修复后的JSON前200字符:', repairedResponse.substring(0, 200) + '...')
+      
+      try {
+        const events = JSON.parse(repairedResponse)
+        console.log('✅ 修复后JSON解析成功，事件数量:', events.length)
+        
+        // 验证数据结构
+        if (!Array.isArray(events)) {
+          throw new Error('AI返回格式错误：应为数组')
+        }
+        
+        // 验证每个事件的基本字段
+        return events.map((event, index) => {
+          if (!event.title || !event.description) {
+            throw new Error(`第${index + 1}个事件缺少必要字段`)
+          }
+          
+          return {
+            title: event.title || `事件${index + 1}`,
+            description: event.description || '暂无描述',
+            time: event.time || '时间待定',
+            chapter: event.chapter || currentChapter.value?.title || '',
+            importance: ['low', 'normal', 'high', 'critical'].includes(event.importance) 
+              ? event.importance 
+              : 'normal',
+            tags: event.tags || []
+          }
+        })
+        
+      } catch (repairError) {
+        console.error('修复后仍然解析失败:', repairError)
+        throw parseError // 抛出原始错误
+      }
+    }
     
   } catch (error) {
     console.error('解析AI响应失败:', error)
+    console.error('原始响应长度:', response.length)
+    console.error('原始响应前500字符:', response.substring(0, 500) + '...')
+    
+    // 如果是网络中断导致的JSON不完整，尝试提取部分数据
+    if (error.message.includes('Expected') || error.message.includes('position')) {
+      console.log('尝试从部分响应中提取事件...')
+      const partialEvents = extractPartialEvents(response)
+      if (partialEvents.length > 0) {
+        console.log(`成功提取 ${partialEvents.length} 个部分事件`)
+        return partialEvents
+      }
+    }
     
     // 降级处理：尝试从文本中提取事件信息
     return extractEventsFromText(response)
@@ -10591,20 +10822,26 @@ ${customPrompt}`
 }
 
 .events-timeline {
-  max-height: calc(100vh - 190px);
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
+  padding-bottom: 20px; /* 为最后一个事件添加底部间距 */
+  padding-right: 8px; /* 为滚动条留出空间 */
 }
 
 .event-item {
   padding: 12px;
   border: 1px solid #e4e7ed;
   border-radius: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 12px; /* 增加底部间距 */
   cursor: pointer;
   transition: all 0.3s;
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.event-item:last-child {
+  margin-bottom: 0; /* 最后一个事件不需要底部间距，由容器padding处理 */
 }
 
 .event-item:hover {

@@ -426,7 +426,7 @@ class APIService {
     const aiParams = getAICallParams()
     const enhancedPrompt = enhanceUserPrompt(prompt)
     
-    const model = options.model || aiParams.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
+    const model = options.model || this.config.selectedModel || aiParams.model || this.config.defaultModel || 'gpt-3.5-turbo'
     console.log('模型选择详情:', {
       传入模型: options.model,
       全局配置模型: aiParams.model,
