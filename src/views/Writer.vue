@@ -310,9 +310,9 @@
         <div v-show="activeTab === 'events'" class="panel-content">
           <el-card shadow="never">
             <template #header>
-              <div class="card-header">
-                <span>📊 事件时间线</span>
-                <div class="header-actions">
+              <div class="event-timeline-header">
+                <div class="event-timeline-title">📊 事件时间线</div>
+                <div class="event-timeline-actions">
                   <el-button size="small" @click="addEvent">
                     <el-icon><Plus /></el-icon>
                     手动创建
@@ -357,13 +357,17 @@
                   </div>
                   <el-tooltip 
                     :content="event.description" 
-                    placement="right"
-                    :disabled="event.description.length <= 80"
-                    effect="light"
-                    :show-after="300"
+                    placement="top"
+                    :disabled="event.description.length <= 25"
+                    effect="dark"
+                    :show-after="500"
+                    :hide-after="100"
+                    :offset="10"
+                    popper-class="event-tooltip"
+                    :popper-style="{ maxWidth: '300px', width: '300px', fontSize: '12px', lineHeight: '1.3', padding: '6px 8px' }"
                   >
                     <p class="event-desc event-desc-truncated">
-                      {{ event.description.length > 80 ? event.description.substring(0, 80) + '...' : event.description }}
+                      {{ event.description.length > 25 ? event.description.substring(0, 25) + '...' : event.description }}
                     </p>
                   </el-tooltip>
                   <div class="event-meta">
@@ -9751,6 +9755,25 @@ ${customPrompt}`
   font-weight: 600;
 }
 
+/* 事件时间线头部样式 */
+.event-timeline-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-timeline-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.event-timeline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* 新的编辑器头部样式 */
 .editor-header {
   display: flex;
@@ -10822,22 +10845,25 @@ ${customPrompt}`
 }
 
 .events-timeline {
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - 280px); /* 增加高度以适应新的头部布局 */
+  max-width: 100%; /* 限制最大宽度 */
+  width: 100%; /* 确保宽度为100% */
   overflow-y: auto;
-  padding-bottom: 20px; /* 为最后一个事件添加底部间距 */
+  overflow-x: hidden; /* 隐藏水平滚动条 */
+  padding-bottom: 30px; /* 增加底部间距确保最后一个事件完整显示 */
   padding-right: 8px; /* 为滚动条留出空间 */
+  position: relative;
+  box-sizing: border-box; /* 确保padding不会增加宽度 */
 }
 
 .event-item {
-  padding: 12px;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
-  margin-bottom: 12px; /* 增加底部间距 */
-  cursor: pointer;
-  transition: all 0.3s;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 12px; /* 减小底部间距 */
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .event-item:last-child {
@@ -10850,28 +10876,68 @@ ${customPrompt}`
 }
 
 .event-marker {
-  width: 10px;
+  width: 10px; /* 减小标记大小 */
   height: 10px;
-  border-radius: 50%;
   background-color: #409eff;
-  margin-right: 10px;
+  border-radius: 50%;
+  margin-right: 12px; /* 减小右边距 */
+  margin-top: 4px; /* 减小顶部偏移 */
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.event-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 2px;
+  height: 40px;
+  background-color: #e4e7ed;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.event-item:last-child .event-marker::after {
+  display: none;
 }
 
 .event-content {
   flex: 1;
+  min-width: 0; /* 允许内容收缩 */
+  max-width: 100%; /* 限制最大宽度 */
+  background: white;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px; /* 减小圆角 */
+  padding: 12px; /* 减小内边距 */
+  transition: all 0.3s ease;
+  overflow: hidden; /* 防止内容溢出 */
+}
+
+.event-content:hover {
+  border-color: #409eff;
+  background-color: #f0f9ff;
 }
 
 .event-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
-.event-content h4 {
-  margin: 0;
-  font-size: 14px;
+.event-header h4 {
+  font-size: 14px; /* 减小字体大小 */
+  font-weight: 600;
   color: #303133;
+  margin: 0;
+  flex: 1;
+  min-width: 0; /* 允许标题收缩 */
+  max-width: 150px; /* 限制标题最大宽度 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .event-actions {
@@ -12019,16 +12085,24 @@ ${customPrompt}`
   white-space: pre-wrap;
 }
 
-.event-content p {
-  margin: 0 0 4px 0;
-  font-size: 13px;
+.event-desc {
+  font-size: 12px; /* 减小字体大小 */
   color: #606266;
-  line-height: 1.4;
+  line-height: 1.3; /* 减小行高 */
+  margin-bottom: 6px; /* 减小底部间距 */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .event-desc-truncated {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: help;
   transition: color 0.2s ease;
+  display: block;
+  width: 100%;
+  max-width: 100%;
 }
 
 .event-desc-truncated:hover {
@@ -12036,8 +12110,69 @@ ${customPrompt}`
 }
 
 .event-meta {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px; /* 减小间距 */
+  font-size: 11px; /* 减小字体大小 */
+  min-width: 0; /* 允许元信息收缩 */
+  flex-wrap: wrap; /* 允许换行 */
+}
+
+.event-time {
   color: #909399;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px; /* 进一步限制时间显示的最大宽度 */
+  font-size: 11px; /* 减小字体大小 */
+}
+
+/* 事件描述tooltip样式 - 使用更强的选择器 */
+:deep(.el-tooltip__popper.event-tooltip) {
+  max-width: 300px !important; /* 调整宽度 */
+  width: 300px !important; /* 强制设置宽度 */
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.3; /* 调整行高 */
+  z-index: 9999 !important;
+  font-size: 12px !important; /* 调整字体大小 */
+  padding: 6px 8px !important; /* 调整内边距 */
+  box-sizing: border-box !important;
+}
+
+:deep(.el-tooltip__popper.event-tooltip .el-tooltip__content) {
+  max-width: 300px !important;
+  width: 300px !important;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.3;
+  font-size: 12px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 全局tooltip样式覆盖 */
+:deep(.el-popper.is-pure) {
+  max-width: 300px !important;
+  width: 300px !important;
+}
+
+/* 强制覆盖所有tooltip样式 */
+:deep(.el-tooltip__popper) {
+  max-width: 300px !important;
+  width: 300px !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  padding: 6px 8px !important;
+}
+
+:deep(.el-tooltip__popper .el-tooltip__content) {
+  max-width: 300px !important;
+  width: 300px !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .empty-editor {
